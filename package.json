@@ -1,0 +1,60 @@
+{
+  "name": "antigravity-chat-copy",
+  "displayName": "Antigravity Chat Copy",
+  "description": "Copy markdown originals from Antigravity chat conversations",
+  "version": "0.2.0",
+  "publisher": "Zachary Lee Jaeho",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zachary-Lee-Jaeho/Antigravity-Chat-Copy.git"
+  },
+  "engines": {
+    "vscode": "^1.68.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "antigravityChatCopy.open",
+        "title": "Open Chat Copy",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "antigravityChatCopy.refresh",
+        "title": "Refresh Chat Copy"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "antigravityChatCopy.open",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m"
+      }
+    ],
+    "configuration": {
+      "title": "Antigravity Chat Copy",
+      "properties": {
+        "antigravityChatCopy.allowInsecureTls": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow insecure localhost TLS when cert.pem pinning fails (NOT recommended)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.68.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}
