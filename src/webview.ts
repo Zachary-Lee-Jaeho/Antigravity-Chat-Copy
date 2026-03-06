@@ -176,8 +176,17 @@ function steps(i){
   $('top').innerHTML='<button class="bbtn" onclick="backD()">← Messages</button><h1 id="title">Step Details</h1>';
   $('tb').innerHTML='';
   let o='<div class="sl"><div class="si">'+s.length+' steps</div>';
-  s.forEach((x,j)=>{const id='s'+i+'-'+j,oc=x.defaultOpen?'o':'',bd=x.defaultOpen?'':'display:none;';
-    o+='<div class="sc"><div class="sh" onclick="tog(\\''+id+'\\')"><span class="sv '+oc+'" id="c-'+id+'">▶</span><span class="se">'+x.icon+'</span><span class="sn">'+h(x.label)+'</span><span class="sx">#'+x.stepIndex+'</span><button class="sp" onclick="event.stopPropagation();cpt('+JSON.stringify(JSON.stringify(x.content))+')">Copy</button></div><div class="sb" id="b-'+id+'" style="'+bd+'"><pre>'+h(x.content)+'</pre></div></div>'});
+  s.forEach((x,j)=>{
+    const id='s'+i+'-'+j,oc=x.defaultOpen?'o':'',bd=x.defaultOpen?'':'display:none;';
+    let cnt=x.content;
+    const isLong=cnt.length>2000;
+    if(isLong){
+        S['f_'+id]=cnt; // store full text in state
+        cnt=cnt.substring(0,2000)+'<span id="m-'+id+'" style="display:none">'+h(cnt.substring(2000))+'</span><div style="margin-top:8px"><button class="ab" id="bbtn-'+id+'" onclick="tmore(event, \\''+id+'\\')">Show More</button></div>';
+    } else { cnt=h(cnt); }
+    
+    o+='<div class="sc"><div class="sh" onclick="tog(\\''+id+'\\')"><span class="sv '+oc+'" id="c-'+id+'">▶</span><span class="se">'+x.icon+'</span><span class="sn">'+h(x.label)+'</span><span class="sx">#'+x.stepIndex+'</span><button class="sp" onclick="cptStep(event,'+i+','+j+')">📋 Copy</button></div><div class="sb" id="b-'+id+'" style="'+bd+'"><pre id="pre-'+id+'">'+cnt+'</pre></div></div>'
+  });
   $('v').innerHTML=o+'</div>';$('v').scrollTop=0;stat('ok',s.length+' steps');
 }
 
@@ -188,11 +197,13 @@ function load(id){vs.postMessage({type:'loadConversation',id})}
 function cp(i){vs.postMessage({type:'copy',text:S.msgs[i].content})}
 function cpAll(){vs.postMessage({type:'copy',text:S.msgs.map(x=>x.content).join('\\n\\n---\\n\\n')})}
 function cpt(t){vs.postMessage({type:'copy',text:JSON.parse(t)})}
+function cptStep(e,i,j){e.stopPropagation(); vs.postMessage({type:'copy',text:S.msgs[i].detailSteps[j].content})}
 function back(){S.view='list';S.conv=null;S.msgs=[];list()}
 function backD(){S.di=null;detail()}
 function reload(){vs.postMessage({type:'init'})}
 function reloadConv(){if(S.conv)vs.postMessage({type:'loadConversation',id:S.conv.id})}
 function tog(id){const b=$('b-'+id),c=$('c-'+id);if(!b||!c)return;const o=b.style.display==='none';b.style.display=o?'':'none';c.classList.toggle('o',o)}
+function tmore(e,id){e.stopPropagation();const m=$('m-'+id),b=$('bbtn-'+id);if(!m||!b)return;const o=m.style.display==='none';m.style.display=o?'':'none';b.textContent=o?'Show Less':'Show More'}
 function sort(){S.asc=!S.asc;list()}
 function search(q){S.q=q;list()}
 
