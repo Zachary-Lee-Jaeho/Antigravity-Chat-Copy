@@ -36,12 +36,6 @@ const STEP_META: Record<string, { label: string; icon: string; open?: boolean }>
     CORTEX_STEP_TYPE_CHECKPOINT: { label: 'Checkpoint', icon: '🔖' },
 };
 
-// ── Content extractors (one per complex step type) ──
-
-function truncate(s: string, max: number): string {
-    return s.length > max ? s.substring(0, max) + '\n…(truncated)' : s;
-}
-
 const EXTRACTORS: Record<string, (s: any) => string> = {
     CORTEX_STEP_TYPE_USER_INPUT: s => s.userInput?.userResponse || '',
     CORTEX_STEP_TYPE_NOTIFY_USER: s => s.notifyUser?.notificationContent || '',
@@ -62,7 +56,7 @@ const EXTRACTORS: Record<string, (s: any) => string> = {
         const parts: string[] = [];
         if (c.commandLine) parts.push(`$ ${c.commandLine}`);
         if (c.cwd) parts.push(`(cwd: ${c.cwd})`);
-        if (c.combinedOutput?.full) parts.push(truncate(c.combinedOutput.full, 2000));
+        if (c.combinedOutput?.full) parts.push(c.combinedOutput.full);
         if (c.exitCode !== undefined) parts.push(`Exit code: ${c.exitCode}`);
         return parts.join('\n');
     },
@@ -87,8 +81,7 @@ const EXTRACTORS: Record<string, (s: any) => string> = {
     CORTEX_STEP_TYPE_ERROR_MESSAGE: s =>
         s.errorMessage?.message || s.errorMessage?.content || JSON.stringify(s.errorMessage || {}),
 
-    CORTEX_STEP_TYPE_VIEW_FILE: s =>
-        s.viewFile?.content ? truncate(s.viewFile.content, 1000) : '',
+    CORTEX_STEP_TYPE_VIEW_FILE: s => s.viewFile?.content || '',
 
     CORTEX_STEP_TYPE_LIST_DIRECTORY: s =>
         s.listDirectory?.content || JSON.stringify(s.listDirectory || {}, null, 2),
@@ -103,7 +96,7 @@ function extractContent(step: any): string {
     for (const k of Object.keys(step)) {
         if (!['type', 'status', 'metadata'].includes(k)) data[k] = step[k];
     }
-    return Object.keys(data).length ? truncate(JSON.stringify(data, null, 2), 2000) : '';
+    return Object.keys(data).length ? JSON.stringify(data, null, 2) : '';
 }
 
 // ── Public API ──

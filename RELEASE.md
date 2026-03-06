@@ -1,33 +1,28 @@
-# v0.2.0 — Initial Release
+# v0.3.0 — UI Improvements & Formatting Fixes
 
 > **Copy original markdown from Antigravity AI chat conversations.**
 
-## ✨ Features
+## ✨ What's New in v0.3.0
 
-- **📋 Copy / Copy All** — One-click copy of any message or the entire conversation as original markdown
-- **🔍 Step Details** — Inspect every internal step between user input and assistant reply (AI thinking, code actions, commands, searches, and 18 step types total)
-- **🔎 Search & Sort** — Filter conversations by title, sort by newest/oldest
-- **🏢 Workspace Filter** — Only shows conversations from the current workspace
-- **⟳ Reload** — Refresh the conversation list or re-fetch the current chat
-- **⌨️ Keyboard Navigation** — `Esc` to go back, `Enter` to select, full focus-visible support
-
-## 🏗️ Architecture
-
-- **643 lines of TypeScript.** No frameworks. No runtime dependencies.
-- Single-page app UI rendered in a VS Code Webview tab
-- Direct ConnectRPC connection to the local Antigravity Language Server
-- Real-time trajectory data via `GetCascadeTrajectorySteps` API
-- Two-pass message extraction: `NOTIFY_USER` (primary) + `PLANNER_RESPONSE` fallback — ensures **no messages are missed**
+- 🛠️ **Fixed Step Details UI/UX**:
+  - The "Copy" button in step details is now **"📋 Copy"** to match the rest of the UI.
+  - 🐛 **Fixed a bug** where clicking to copy inside Step Details would accidentally toggle the step open/closed.
+  - 🚀 **Performance/Reliability Fix**: Copying massive chunks of text (like 100k character script outputs) no longer breaks the UI or fails to copy.
+- 📐 **Expandable Long Text**:
+  - Long step contents (over 2000 characters) are no longer permanently truncated with `...(truncated)`!
+  - We now preserve the **full original output** and display a clean **[Show More]** / **[Show Less]** toggle button.
+  - Perfect for inspecting massive crash logs, huge `cat` file outputs, or deep directory listings without losing any data.
+- 🔄 **Reload Refresh**:
+  - Added a convenient **⟳ Reload** button directly inside the conversation detail view. Refreshing the chat manually without leaving it is now a single click.
 
 ## 📦 Install
 
-Download `antigravity-chat-copy-0.2.0.vsix` below, then:
-
-`Ctrl+Shift+P` → **"Extensions: Install from VSIX…"** → select the file
+Download `antigravity-chat-copy-0.3.0.vsix` below.
+In VS Code: `Ctrl+Shift+P` → **"Extensions: Install from VSIX…"** → select the file.
 
 ## ⚠️ Requirements
 
-- **Linux only** (V1) — uses `/proc` for Language Server discovery
+- **Linux only** (V1)
 - **Antigravity** must be running with an active workspace
 
 ## ⚠️ Disclaimer
