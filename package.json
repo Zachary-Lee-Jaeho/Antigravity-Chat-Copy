@@ -2,7 +2,7 @@
   "name": "antigravity-chat-copy",
   "displayName": "Antigravity Chat Copy",
   "description": "Copy markdown originals from Antigravity chat conversations",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "publisher": "zachary-lee-jaeho",
   "repository": {
     "type": "git",

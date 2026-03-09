@@ -100,7 +100,7 @@ export function callLsApi(
 
 // ── Internal helpers ──
 
-function findExtensionPath(): string | null {
+export function findExtensionPath(): string | null {
     const base = path.join(os.homedir(), '.antigravity-server', 'bin');
     if (!fs.existsSync(base)) return null;
 

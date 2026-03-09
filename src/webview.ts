@@ -137,7 +137,7 @@ window.addEventListener('message',e=>{
       stat(d.loading?'ld':'ok',d.loading?'Loading…':S.convs.length+' conversations');
       if(S.view==='list')list();break;
     case'conversationLoading':loading('Loading conversation…');break;
-    case'conversation':S.conv={id:d.id,title:d.title};S.msgs=d.messages;S.view='detail';S.di=null;detail();break;
+    case'conversation':S.conv={id:d.id,title:d.title};S.msgs=d.messages;S.hint=d.statusHint||'';S.view='detail';S.di=null;detail();break;
     case'error':error(d.message);stat('err',d.message);break;
     case'copied':toast('✓ Copied to clipboard');break;
     case'refresh':vs.postMessage({type:'init'});break;
@@ -168,7 +168,7 @@ function detail(){
   m.forEach((x,i)=>{const u=x.role==='user',c=u?'u':'a',em=u?'👤':'🤖',lb=u?'User':'Assistant';
     const det=!u&&x.detailSteps?.length?'<button class="ab" onclick="steps('+i+')">🔍 Details</button>':'';
     o+='<div class="m '+c+'"><div class="mh"><span class="mr"><span class="e">'+em+'</span><span class="l">'+lb+'</span></span><div class="ma">'+det+'<button class="ab" onclick="cp('+i+')">📋 Copy</button></div></div><div class="mc">'+h(x.content)+'</div></div>'});
-  $('v').innerHTML=o+'</div>';$('v').scrollTop=0;stat('ok',m.length+' messages');
+  $('v').innerHTML=o+'</div>';$('v').scrollTop=0;stat(S.hint?'warn':'ok',m.length+' messages'+(S.hint?' '+S.hint:''));
 }
 
 function steps(i){

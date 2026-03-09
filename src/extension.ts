@@ -2,12 +2,16 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { connectToLs, callLsApi, LsConnectionInfo } from './lsClient';
+import { connectToLs, callLsApi, LsConnectionInfo, findExtensionPath } from './lsClient';
 import { extractMessages, extractTitle } from './markdownExtractor';
 import { getWebviewHtml } from './webview';
+import { extractKey, clearKeyCache } from './crypto';
+import { loadConversationFromDisk } from './proto';
+import { Step } from './types';
 
 let panel: vscode.WebviewPanel | null = null;
 let ls: LsConnectionInfo | null = null;
+let encryptionKey: Buffer | null = null;
 
 export function activate(ctx: vscode.ExtensionContext) {
   if (process.platform !== 'linux') {
@@ -40,16 +44,42 @@ function open(ctx: vscode.ExtensionContext) {
 }
 
 function send(data: any) { panel?.webview.postMessage(data); }
-function insecure() { return vscode.workspace.getConfiguration('antigravityChatCopy').get<boolean>('allowInsecureTls', false); }
+
+function getAllowInsecure(): boolean {
+  return vscode.workspace.getConfiguration('antigravityChatCopy').get<boolean>('allowInsecureTls', false);
+}
 
 // ── Handlers ──
 
 async function handleInit(ctx: vscode.ExtensionContext) {
-  try { if (!ls) ls = await connectToLs(insecure()); }
+  try { if (!ls) ls = await connectToLs(getAllowInsecure()); }
   catch (e: any) { return send({ type: 'error', message: e.message }); }
 
   const convDir = path.join(os.homedir(), '.gemini', 'antigravity', 'conversations');
   if (!fs.existsSync(convDir)) return send({ type: 'conversations', conversations: [] });
+
+  // Extract encryption key (one-time, ~12s first run)
+  if (!encryptionKey && ls) {
+    const extPath = findExtensionPath();
+    if (extPath) {
+      const binPath = path.join(extPath, 'bin', 'language_server_linux_x64');
+      encryptionKey = await extractKey(binPath, ls.pid);
+      if (!encryptionKey) {
+        vscode.window.showWarningMessage(
+          'Could not extract .pb decryption key. Disk-based loading disabled. ' +
+          'Please report this via GitHub issue.',
+          'Open GitHub Issue'
+        ).then(choice => {
+          if (choice === 'Open GitHub Issue') {
+            vscode.env.openExternal(vscode.Uri.parse(
+              'https://github.com/Zachary-Lee-Jaeho/antigravity-chat-copy/issues/new?title=Key+extraction+failed&body=LS+version:+' +
+              encodeURIComponent(path.basename(path.dirname(path.dirname(extPath!))))
+            ));
+          }
+        });
+      }
+    }
+  }
 
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
   const files = fs.readdirSync(convDir).filter(f => f.endsWith('.pb')).map(f => {
@@ -70,19 +100,32 @@ async function handleInit(ctx: vscode.ExtensionContext) {
 
   send({ type: 'conversations', conversations: convs, loading: uncached.length > 0 });
 
-  // Background fetch (3 workers, max 20)
-  if (uncached.length && ls) {
-    let i = 0;
+  // Background: resolve uncached titles — disk (instant) → API (fallback)
+  if (uncached.length) {
+    const queue = [...uncached];
     const work = async () => {
-      while (i < Math.min(uncached.length, 20)) {
-        const f = uncached[i++];
+      while (true) {
+        const f = queue.shift();  // atomic pop from shared queue (single-threaded JS)
+        if (!f) break;
         try {
-          const r = await callLsApi(ls!, 'GetCascadeTrajectory', { cascadeId: f.id }, insecure());
-          if (!r.trajectory) continue;
-          const title = extractTitle(r.trajectory.steps || []);
-          const ws = r.trajectory.metadata?.workspaces?.[0]?.workspaceFolderAbsoluteUri || '';
-          cache[f.id] = { title, workspaceUri: ws };
-          if (ws === workspace || !workspace) convs.push({ id: f.id, title, mtime: f.mtime });
+          if (encryptionKey) {
+            const diskData = loadConversationFromDisk(f.id, encryptionKey);
+            if (diskData?.steps?.length) {
+              const title = extractTitle(diskData.steps);
+              const ws = diskData.metadata?.workspaces?.[0]?.workspaceFolderAbsoluteUri || '';
+              cache[f.id] = { title, workspaceUri: ws };
+              if (ws === workspace || !workspace) convs.push({ id: f.id, title, mtime: f.mtime });
+              continue;
+            }
+          }
+          if (ls) {
+            const r = await callLsApi(ls, 'GetCascadeTrajectory', { cascadeId: f.id }, getAllowInsecure());
+            if (!r.trajectory) continue;
+            const title = extractTitle(r.trajectory.steps || []);
+            const ws = r.trajectory.metadata?.workspaces?.[0]?.workspaceFolderAbsoluteUri || '';
+            cache[f.id] = { title, workspaceUri: ws };
+            if (ws === workspace || !workspace) convs.push({ id: f.id, title, mtime: f.mtime });
+          }
         } catch { /* skip */ }
       }
     };
@@ -94,19 +137,47 @@ async function handleInit(ctx: vscode.ExtensionContext) {
 }
 
 async function handleLoad(id: string) {
-  if (!ls) return send({ type: 'error', message: 'Not connected' });
+  if (!ls && !encryptionKey) return send({ type: 'error', message: 'Not connected and no decryption key' });
   try {
     send({ type: 'conversationLoading' });
-    // Prefer GetCascadeTrajectorySteps (returns real-time data) with fallback
-    let steps: any[] = [];
-    try {
-      const r = await callLsApi(ls, 'GetCascadeTrajectorySteps', { cascadeId: id }, insecure());
-      steps = r.steps || [];
-    } catch {
-      const r = await callLsApi(ls, 'GetCascadeTrajectory', { cascadeId: id }, insecure());
-      steps = r.trajectory?.steps || [];
+
+    // Load from disk and API in parallel, pick the one with more steps
+    const diskPromise = encryptionKey
+      ? Promise.resolve(loadConversationFromDisk(id, encryptionKey))
+      : Promise.resolve(null);
+
+    const apiPromise = ls ? Promise.allSettled([
+      callLsApi(ls, 'GetCascadeTrajectorySteps', { cascadeId: id }, getAllowInsecure()),
+      callLsApi(ls, 'GetCascadeTrajectory', { cascadeId: id }, getAllowInsecure()),
+    ]) : Promise.resolve([]);
+
+    const [diskData, apiResults] = await Promise.all([diskPromise, apiPromise]);
+
+    let apiSteps: Step[] = [];
+    let totalSteps: number | undefined;
+    if (Array.isArray(apiResults) && apiResults.length === 2) {
+      const s1 = apiResults[0].status === 'fulfilled' ? (apiResults[0].value.steps || []) : [];
+      const s2 = apiResults[1].status === 'fulfilled' ? (apiResults[1].value.trajectory?.steps || []) : [];
+      if (apiResults[1].status === 'fulfilled') totalSteps = apiResults[1].value.numTotalSteps;
+      apiSteps = s1.length >= s2.length ? s1 : s2;
     }
+
+    const diskSteps = diskData?.steps || [];
+    const steps = diskSteps.length >= apiSteps.length ? diskSteps : apiSteps;
+    const source = diskSteps.length >= apiSteps.length ? 'disk' : 'api';
+
     if (!steps.length) return send({ type: 'error', message: 'No trajectory data' });
-    send({ type: 'conversation', id, title: extractTitle(steps), messages: extractMessages(steps) });
+
+    const messages = extractMessages(steps);
+    const title = extractTitle(steps);
+    let suffix = '';
+    if (source === 'disk') {
+      suffix = apiSteps.length > 0 && apiSteps.length < diskSteps.length
+        ? ` (${steps.length} steps from disk, API had ${apiSteps.length})`
+        : ` (${steps.length} steps from disk)`;
+    } else if (totalSteps && totalSteps > steps.length) {
+      suffix = ` (${steps.length}/${totalSteps} steps from API)`;
+    }
+    send({ type: 'conversation', id, title, messages, statusHint: suffix });
   } catch (e: any) { send({ type: 'error', message: e.message }); }
 }
