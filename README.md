@@ -96,13 +96,16 @@ This two-pass extraction ensures **no messages are missed**, even for active con
 
 ```
 src/
-├── extension.ts          # Entry point, panel lifecycle, data handlers (112 lines)
-├── webview.ts            # Single-page app UI: HTML/CSS/JS (207 lines)
+├── extension.ts          # Entry point, panel lifecycle, data handlers (183 lines)
+├── webview.ts            # Single-page app UI: HTML/CSS/JS (218 lines)
 ├── lsClient.ts           # LS discovery via /proc & ConnectRPC calls (153 lines)
-└── markdownExtractor.ts  # Two-pass message extraction & step parsing (171 lines)
+├── markdownExtractor.ts  # Two-pass message extraction & step parsing (216 lines)
+├── proto.ts              # Protobuf decoding for .pb trajectory files (433 lines)
+├── crypto.ts             # AES-GCM decryption of encrypted .pb files (248 lines)
+└── types.ts              # Shared TypeScript interfaces & constants (158 lines)
 ```
 
-**643 lines total.** No frameworks. No runtime dependencies beyond the VS Code API.
+**1,609 lines total.** No frameworks. No runtime dependencies beyond the VS Code API.
 
 ## API Details
 
