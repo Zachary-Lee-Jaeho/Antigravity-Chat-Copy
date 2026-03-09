@@ -70,6 +70,23 @@ export function parseTrajectory(data: Buffer): Trajectory {
             if (step) steps.push(step);
         } else if (f.num === 3 && Buffer.isBuffer(f.val)) {
             metadata = parseMetadata(f.val);
+        } else if (f.num === 7 && Buffer.isBuffer(f.val)) {
+            // Workspace info lives in top-level field 7, nested 2-3 levels deep.
+            // Recursively search for file:// URIs regardless of isText() heuristic.
+            const findWorkspace = (buf: Buffer, depth: number): void => {
+                if (depth <= 0) return;
+                for (const i of decodeProto(buf)) {
+                    if (!Buffer.isBuffer(i.val)) continue;
+                    const s = i.val.toString('utf8');
+                    if (s.startsWith('file://') && s.length < 500) {
+                        if (!metadata.workspaces) metadata.workspaces = [];
+                        metadata.workspaces.push({ workspaceFolderAbsoluteUri: s });
+                    } else if (i.val.length > 4) {
+                        findWorkspace(i.val, depth - 1);
+                    }
+                }
+            };
+            findWorkspace(f.val, 3);
         }
     }
     return { id, steps, metadata };

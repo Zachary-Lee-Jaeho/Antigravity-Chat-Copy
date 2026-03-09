@@ -103,9 +103,9 @@ async function handleInit(ctx: vscode.ExtensionContext) {
 
   for (const f of files) {
     const c = cache[f.id];
-    if (c && 'workspaceUri' in c) {
+    if (c?.workspaceUri) {
       if (c.workspaceUri === workspace || !workspace) convs.push({ id: f.id, title: c.title, mtime: f.mtime });
-    } else uncached.push(f);
+    } else uncached.push(f);  // no cache or empty workspace → re-resolve
   }
 
   send({ type: 'conversations', conversations: convs, loading: uncached.length > 0 });
