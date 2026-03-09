@@ -52,8 +52,18 @@ function getAllowInsecure(): boolean {
 // ── Handlers ──
 
 async function handleInit(ctx: vscode.ExtensionContext) {
-  try { if (!ls) ls = await connectToLs(getAllowInsecure()); }
-  catch (e: any) { return send({ type: 'error', message: e.message }); }
+  // Validate existing LS connection or re-discover
+  const oldPid = ls?.pid;
+  try {
+    if (ls) {
+      try { await callLsApi(ls, 'Heartbeat', { metadata: {} }, getAllowInsecure()); }
+      catch { ls = null; }  // stale connection → re-discover
+    }
+    if (!ls) {
+      ls = await connectToLs(getAllowInsecure());
+      if (ls.pid !== oldPid) { encryptionKey = null; clearKeyCache(); }
+    }
+  } catch (e: any) { /* proceed without API — disk-only mode if key available */ }
 
   const convDir = path.join(os.homedir(), '.gemini', 'antigravity', 'conversations');
   if (!fs.existsSync(convDir)) return send({ type: 'conversations', conversations: [] });
@@ -93,7 +103,7 @@ async function handleInit(ctx: vscode.ExtensionContext) {
 
   for (const f of files) {
     const c = cache[f.id];
-    if (c?.workspaceUri) {
+    if (c && 'workspaceUri' in c) {
       if (c.workspaceUri === workspace || !workspace) convs.push({ id: f.id, title: c.title, mtime: f.mtime });
     } else uncached.push(f);
   }
