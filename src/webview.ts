@@ -1,6 +1,7 @@
 /**
- * Returns the full HTML for the webview SPA.
- * Views: list → detail → step-detail, with ← back navigation.
+ * Returns the full HTML for the editor-tab webview.
+ * Views: detail → step-detail, with ← back navigation.
+ * The conversation list is now in the sidebar TreeView.
  */
 export function getWebviewHtml(): string {
   return `<!DOCTYPE html>
@@ -33,35 +34,14 @@ export function getWebviewHtml(): string {
 }
 html,body{height:100%;font:14px/1.5 var(--font);color:var(--fg);background:var(--bg);overflow:hidden;-webkit-font-smoothing:antialiased}
 
-/* Shell */
 #app{display:flex;flex-direction:column;height:100vh}
-.top{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5);border-bottom:1px solid var(--brd);min-height:52px;flex-shrink:0;background:var(--bg)}
-.top h1{font-size:16px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.top{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5);border-bottom:1px solid var(--brd);min-height:48px;flex-shrink:0;background:var(--bg)}
+.top h1{font-size:15px;font-weight:600;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
 .ibtn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:none;border-radius:var(--r2);background:0;color:var(--fg);cursor:pointer;font-size:16px;transition:background .12s;flex-shrink:0}
 .ibtn:hover{background:var(--hover)}
-.ibtn:active{transform:scale(.92)}
 .bbtn{display:inline-flex;align-items:center;gap:var(--s1);padding:var(--s1) var(--s2);border:none;border-radius:var(--r2);background:0;color:var(--fg2);cursor:pointer;font-size:13px;font-weight:500;transition:all .12s;flex-shrink:0}
 .bbtn:hover{color:var(--fg);background:var(--hover)}
 .view{flex:1;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth}
-
-/* Toolbar */
-.tb{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s5);border-bottom:1px solid var(--brd2);flex-shrink:0}
-.tb input{flex:1;padding:var(--s2) var(--s3);border:1px solid var(--brd);border-radius:var(--r);background:var(--bg2);color:var(--fg);font-size:13px;outline:0;transition:border-color .15s,box-shadow .15s}
-.tb input:focus{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac2)}
-.tb input::placeholder{color:var(--fg3)}
-.pill{display:inline-flex;align-items:center;gap:var(--s1);padding:var(--s1) var(--s3);border:1px solid var(--brd);border-radius:20px;background:var(--bg2);color:var(--fg2);cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;transition:all .12s}
-.pill:hover{color:var(--fg);background:var(--hover);border-color:var(--ac3)}
-
-/* Conv list */
-.cl{padding:var(--s2) var(--s3)}
-.ci{display:flex;align-items:center;gap:var(--s4);padding:var(--s3) var(--s4);margin:var(--s1) 0;cursor:pointer;border-radius:var(--r);transition:background .1s}
-.ci:hover{background:var(--hover)}
-.ci:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
-.ci-i{width:36px;height:36px;border-radius:var(--r);background:var(--ac2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.ci-b{flex:1;min-width:0}
-.ci-t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
-.ci-m{font-size:12px;color:var(--fg2);margin-top:2px}
-.ci-a{color:var(--fg3);font-size:14px;flex-shrink:0}
 
 /* Messages */
 .ml{padding:var(--s4) var(--s5) var(--s8)}
@@ -119,49 +99,29 @@ html,body{height:100%;font:14px/1.5 var(--font);color:var(--fg);background:var(-
 </head>
 <body>
 <div id="app">
-  <div class="top" id="top"><h1 id="title">Chat Copy</h1><button class="ibtn" onclick="reload()" title="Reload">⟳</button></div>
-  <div id="tb"></div>
+  <div class="top" id="top"><h1 id="title">Loading…</h1></div>
   <div class="view" id="v"></div>
-  <div class="bar"><div class="dot ld" id="dot"></div><span id="stat">Connecting…</span></div>
+  <div class="bar"><div class="dot ld" id="dot"></div><span id="stat">Loading…</span></div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
 const vs=acquireVsCodeApi();
-let S={view:'list',convs:[],conv:null,msgs:[],q:'',asc:false,di:null};
-vs.postMessage({type:'init'});
+let S={view:'detail',msgs:[],conv:null,hint:'',di:null};
+vs.postMessage({type:'ready'});
 
 window.addEventListener('message',e=>{
   const d=e.data;
   switch(d.type){
-    case'conversations':S.convs=d.conversations||[];
-      stat(d.loading?'ld':'ok',d.loading?'Loading…':S.convs.length+' conversations');
-      if(S.view==='list')list();break;
     case'conversationLoading':loading('Loading conversation…');break;
-    case'conversation':S.conv={id:d.id,title:d.title};S.msgs=d.messages;S.hint=d.statusHint||'';S.view='detail';S.di=null;detail();break;
+    case'conversation':S.conv={id:d.id,title:d.title};S.msgs=d.messages;S.hint=d.statusHint||'';S.di=null;detail();break;
     case'error':error(d.message);stat('err',d.message);break;
     case'copied':toast('✓ Copied to clipboard');break;
-    case'refresh':vs.postMessage({type:'init'});break;
   }
 });
 
-function list(){
-  S.view='list';S.di=null;
-  $('top').innerHTML='<h1 id="title">Chat Copy</h1><button class="ibtn" onclick="reload()" title="Reload">⟳</button>';
-  $('tb').innerHTML='<div class="tb"><input type="text" placeholder="Search…" value="'+h(S.q)+'" oninput="search(this.value)"><button class="pill" onclick="sort()">'+(S.asc?'↑ Oldest':'↓ Newest')+'</button></div>';
-  let c=S.convs;
-  if(S.q){const q=S.q.toLowerCase();c=c.filter(x=>(x.title||'').toLowerCase().includes(q)||x.id.includes(q))}
-  c=[...c].sort((a,b)=>S.asc?a.mtime-b.mtime:b.mtime-a.mtime);
-  if(!c.length){$('v').innerHTML='<div class="es"><div class="si2">💬</div><div class="st2">'+(S.q?'No matches':'No conversations')+'</div><div class="st3">'+(S.q?'Try different keywords':'No conversations in this workspace')+'</div></div>';return}
-  let o='<div class="cl">';
-  c.forEach(x=>{const d=new Date(x.mtime),ds=d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-    o+='<div class="ci" tabindex="0" onclick="load(\\''+x.id+'\\')\" onkeydown="if(event.key===\\'Enter\\')load(\\''+x.id+'\\')">'
-      +'<div class="ci-i">💬</div><div class="ci-b"><div class="ci-t">'+h(x.title||x.id.substring(0,16)+'…')+'</div><div class="ci-m">'+ds+' · '+x.id.substring(0,8)+'</div></div><div class="ci-a">›</div></div>'});
-  $('v').innerHTML=o+'</div>';
-}
-
 function detail(){
-  $('top').innerHTML='<button class="bbtn" onclick="back()">← Back</button><h1 id="title">'+h(S.conv?.title||'')+'</h1><button class="ibtn" onclick="reloadConv()" title="Reload">⟳</button>';
-  $('tb').innerHTML='';
+  S.view='detail';S.di=null;
+  $('top').innerHTML='<h1 id="title">'+h(S.conv?.title||'')+'</h1><button class="ibtn" onclick="reloadConv()" title="Reload">⟳</button>';
   const m=S.msgs;
   if(!m||!m.length){$('v').innerHTML='<div class="es"><div class="si2">📭</div><div class="st2">Empty</div></div>';return}
   let o='<div class="ml"><div class="mt"><span class="st">👤 '+m.filter(x=>x.role==='user').length+' user · 🤖 '+m.filter(x=>x.role==='assistant').length+' assistant</span><button class="ab p" onclick="cpAll()">📋 Copy All</button></div>';
@@ -174,44 +134,34 @@ function detail(){
 function steps(i){
   S.di=i;const m=S.msgs[i];if(!m?.detailSteps)return;const s=m.detailSteps;
   $('top').innerHTML='<button class="bbtn" onclick="backD()">← Messages</button><h1 id="title">Step Details</h1>';
-  $('tb').innerHTML='';
   let o='<div class="sl"><div class="si">'+s.length+' steps</div>';
   s.forEach((x,j)=>{
     const id='s'+i+'-'+j,oc=x.defaultOpen?'o':'',bd=x.defaultOpen?'':'display:none;';
     let cnt=x.content;
     const isLong=cnt.length>2000;
     if(isLong){
-        S['f_'+id]=cnt; // store full text in state
-        cnt=cnt.substring(0,2000)+'<span id="m-'+id+'" style="display:none">'+h(cnt.substring(2000))+'</span><div style="margin-top:8px"><button class="ab" id="bbtn-'+id+'" onclick="tmore(event, \\''+id+'\\')">Show More</button></div>';
+      cnt=h(cnt.substring(0,2000))+'<span id="m-'+id+'" style="display:none">'+h(cnt.substring(2000))+'</span><div style="margin-top:8px"><button class="ab" id="bbtn-'+id+'" onclick="tmore(event,\\''+id+'\\')">Show More</button></div>';
     } else { cnt=h(cnt); }
-    
     o+='<div class="sc"><div class="sh" onclick="tog(\\''+id+'\\')"><span class="sv '+oc+'" id="c-'+id+'">▶</span><span class="se">'+x.icon+'</span><span class="sn">'+h(x.label)+'</span><span class="sx">#'+x.stepIndex+'</span><button class="sp" onclick="cptStep(event,'+i+','+j+')">📋 Copy</button></div><div class="sb" id="b-'+id+'" style="'+bd+'"><pre id="pre-'+id+'">'+cnt+'</pre></div></div>'
   });
   $('v').innerHTML=o+'</div>';$('v').scrollTop=0;stat('ok',s.length+' steps');
 }
 
 function loading(t){$('v').innerHTML='<div class="ls"><div class="sp2"></div><div class="st3">'+h(t)+'</div></div>'}
-function error(t){$('v').innerHTML='<div class="xs"><div class="si2">⚠️</div><div class="st2">Something went wrong</div><div class="st3">'+h(t)+'</div><button class="rb" onclick="reload()">Try Again</button></div>'}
+function error(t){$('v').innerHTML='<div class="xs"><div class="si2">⚠️</div><div class="st2">Something went wrong</div><div class="st3">'+h(t)+'</div><button class="rb" onclick="reloadConv()">Try Again</button></div>'}
 
-function load(id){vs.postMessage({type:'loadConversation',id})}
 function cp(i){vs.postMessage({type:'copy',text:S.msgs[i].content})}
 function cpAll(){vs.postMessage({type:'copy',text:S.msgs.map(x=>x.content).join('\\n\\n---\\n\\n')})}
-function cpt(t){vs.postMessage({type:'copy',text:JSON.parse(t)})}
 function cptStep(e,i,j){e.stopPropagation(); vs.postMessage({type:'copy',text:S.msgs[i].detailSteps[j].content})}
-function back(){S.view='list';S.conv=null;S.msgs=[];list()}
 function backD(){S.di=null;detail()}
-function reload(){vs.postMessage({type:'init'})}
-function reloadConv(){if(S.conv)vs.postMessage({type:'loadConversation',id:S.conv.id})}
+function reloadConv(){vs.postMessage({type:'ready'})}
 function tog(id){const b=$('b-'+id),c=$('c-'+id);if(!b||!c)return;const o=b.style.display==='none';b.style.display=o?'':'none';c.classList.toggle('o',o)}
 function tmore(e,id){e.stopPropagation();const m=$('m-'+id),b=$('bbtn-'+id);if(!m||!b)return;const o=m.style.display==='none';m.style.display=o?'':'none';b.textContent=o?'Show Less':'Show More'}
-function sort(){S.asc=!S.asc;list()}
-function search(q){S.q=q;list()}
 
 function $(id){return document.getElementById(id)}
-function h(t){return t?t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):''}
-function stat(s,t){$('dot').className='dot '+s;$('stat').textContent=t}
+function h(t){return t?t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):''}\nfunction stat(s,t){$('dot').className='dot '+s;$('stat').textContent=t}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(S.di!==null)backD();else if(S.view==='detail')back()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.di!==null)backD()});
 </script>
 </body>
 </html>`;
