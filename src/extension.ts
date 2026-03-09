@@ -99,13 +99,38 @@ async function handleInit(ctx: vscode.ExtensionContext) {
 
   const cache = ctx.globalState.get<Record<string, any>>('convCache', {});
   const convs: any[] = [];
-  const uncached: typeof files = [];
 
+  // Fast path: GetAllCascadeTrajectories returns AI-generated titles + workspace in one call
+  let summaries: Record<string, any> | null = null;
+  if (ls) {
+    try {
+      const r = await callLsApi(ls, 'GetAllCascadeTrajectories', {}, getAllowInsecure());
+      summaries = r.trajectorySummaries || null;
+    } catch { /* API unavailable — fall back to disk */ }
+  }
+
+  if (summaries) {
+    for (const f of files) {
+      const s = summaries[f.id];
+      if (!s) continue;
+      const title = s.summary || extractTitle([]);  // AI title
+      const ws = s.workspaces?.[0]?.workspaceFolderAbsoluteUri || '';
+      cache[f.id] = { title, workspaceUri: ws };
+      if (ws === workspace || !workspace) convs.push({ id: f.id, title, mtime: f.mtime });
+    }
+    convs.sort((a, b) => b.mtime - a.mtime);
+    await ctx.globalState.update('convCache', cache);
+    send({ type: 'conversations', conversations: convs, loading: false });
+    return;
+  }
+
+  // Fallback: resolve from cache → disk → per-conversation API
+  const uncached: typeof files = [];
   for (const f of files) {
     const c = cache[f.id];
     if (c?.workspaceUri) {
       if (c.workspaceUri === workspace || !workspace) convs.push({ id: f.id, title: c.title, mtime: f.mtime });
-    } else uncached.push(f);  // no cache or empty workspace → re-resolve
+    } else uncached.push(f);
   }
 
   send({ type: 'conversations', conversations: convs, loading: uncached.length > 0 });
