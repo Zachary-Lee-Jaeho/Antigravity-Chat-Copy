@@ -32,7 +32,7 @@ Antigravity renders chat responses in a closed webview — you can't select or c
 | 🔍 **Step Details** | Inspect every internal step (thinking, tool calls, code actions, commands, searches) between a user input and the assistant reply |
 | 🔎 **Search & Sort** | Filter conversations by title, sort by newest/oldest |
 | 🏢 **Workspace Filter** | Only shows conversations from the current workspace |
-| ⟳ **Reload** | Refresh the conversation list or re-fetch the current conversation |
+| ⟳ **Reload** | Refresh conversation list or re-fetch current chat; auto-reconnects if LS restarted |
 | ⌨️ **Keyboard Nav** | `Esc` to go back, `Enter` to select, full focus-visible support |
 | 💾 **Disk + API** | Loads from encrypted `.pb` files (instant) and API in parallel, picks the source with more steps |
 | 🔐 **Auto Key Extraction** | Extracts AES-256-GCM key from the LS binary (ELF `.rodata` scan + process memory fallback) |
