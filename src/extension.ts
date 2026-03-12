@@ -137,10 +137,13 @@ async function loadConversationList(ctx: vscode.ExtensionContext): Promise<ConvI
   if (!fs.existsSync(convDir)) return [];
 
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
-  const files = fs.readdirSync(convDir).filter(f => f.endsWith('.pb')).map(f => {
+
+  // Build a map of all .pb file mtimes for any ID we might need
+  const allFiles = new Map<string, number>();
+  for (const f of fs.readdirSync(convDir).filter(f => f.endsWith('.pb'))) {
     const id = f.replace('.pb', '');
-    return { id, mtime: fs.statSync(path.join(convDir, f)).mtime.getTime() };
-  }).sort((a, b) => b.mtime - a.mtime).slice(0, 30);
+    try { allFiles.set(id, fs.statSync(path.join(convDir, f)).mtime.getTime()); } catch { /* skip */ }
+  }
 
   const cache = ctx.globalState.get<Record<string, any>>('convCache', {});
   const convs: ConvItem[] = [];
@@ -151,38 +154,45 @@ async function loadConversationList(ctx: vscode.ExtensionContext): Promise<ConvI
       const r = await callLsApi(ls, 'GetAllCascadeTrajectories', {}, getAllowInsecure());
       const summaries = r.trajectorySummaries;
       if (summaries) {
-        for (const f of files) {
-          const s = summaries[f.id];
-          if (!s) continue;
-          const title = s.summary || f.id.substring(0, 8);
+        // Iterate ALL summaries from the API, not just top N disk files
+        for (const [id, s] of Object.entries<any>(summaries)) {
+          const title = s.summary || id.substring(0, 8);
           const ws = s.workspaces?.[0]?.workspaceFolderAbsoluteUri || '';
-          cache[f.id] = { title, workspaceUri: ws };
-          if (ws === workspace || !workspace) convs.push({ id: f.id, title, mtime: f.mtime });
+          cache[id] = { title, workspaceUri: ws };
+          if (ws === workspace || !workspace) {
+            const mtime = allFiles.get(id) || 0;
+            convs.push({ id, title, mtime });
+          }
         }
         await ctx.globalState.update('convCache', cache);
-        return convs;
+        return convs.sort((a, b) => b.mtime - a.mtime).slice(0, 50);
       }
     } catch { /* fall back */ }
   }
 
-  // Fallback: disk-based resolution
-  for (const f of files) {
-    const c = cache[f.id];
+  // Fallback: disk-based resolution (use all files, cap after filtering)
+  const diskFiles = [...allFiles.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 100); // scan more files to avoid missing workspace matches
+
+  for (const [id, mtime] of diskFiles) {
+    const c = cache[id];
     if (c?.workspaceUri) {
-      if (c.workspaceUri === workspace || !workspace) convs.push({ id: f.id, title: c.title, mtime: f.mtime });
+      if (c.workspaceUri === workspace || !workspace) convs.push({ id, title: c.title, mtime });
       continue;
     }
     if (encryptionKey) {
       try {
-        const diskData = loadConversationFromDisk(f.id, encryptionKey);
+        const diskData = loadConversationFromDisk(id, encryptionKey);
         if (diskData?.steps?.length) {
           const title = extractTitle(diskData.steps);
           const ws = diskData.metadata?.workspaces?.[0]?.workspaceFolderAbsoluteUri || '';
-          cache[f.id] = { title, workspaceUri: ws };
-          if (ws === workspace || !workspace) convs.push({ id: f.id, title, mtime: f.mtime });
+          cache[id] = { title, workspaceUri: ws };
+          if (ws === workspace || !workspace) convs.push({ id, title, mtime });
         }
       } catch { /* skip */ }
     }
+    if (convs.length >= 50) break;
   }
   await ctx.globalState.update('convCache', cache);
   return convs;
